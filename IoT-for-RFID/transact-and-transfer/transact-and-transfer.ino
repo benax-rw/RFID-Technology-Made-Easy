@@ -89,7 +89,7 @@ void transferData(String data, const char* filepath){
   wifiClient.println("Content-Length: " +(String)data.length());
   wifiClient.println();
   wifiClient.print(data); 
-  getFeedback("Success");
+  getFeedback("Transaction uploaded successfully!");
 }
 
 
