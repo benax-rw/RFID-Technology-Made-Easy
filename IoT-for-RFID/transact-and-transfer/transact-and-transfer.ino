@@ -1,14 +1,9 @@
-#include <AES.h>
 #include <SPI.h>
 #include <MFRC522.h> 
-
 #include <ESP8266WiFi.h>
 
 #define SS_PIN 15  //D8
 #define RST_PIN 16 //D0
-#define AMBER_LED_PIN 4 //D2
-#define GREEN_LED_PIN 2 //D4 
-#define BUZZER_PIN 5 //D1
 
 MFRC522 mfrc522(SS_PIN, RST_PIN);   
 MFRC522::MIFARE_Key key;
@@ -17,10 +12,7 @@ WiFiClient wifiClient;
 const char* host = "iot.benax.rw"; //domain or subdomain of your website
 
 void setup(){
-  pinMode(GREEN_LED_PIN, OUTPUT);
-  pinMode(AMBER_LED_PIN, OUTPUT);
-  pinMode(BUZZER_PIN, OUTPUT);
-  Serial.begin(115200); //Start Serial Monitor with the baud rate 115200
+  Serial.begin(115200); // Start Serial Monitor with baud rate 115200
   connectToWiFi("Benax-POP8A", "ben@kushi");
   SPI.begin();                                                 
   mfrc522.PCD_Init();                                                
@@ -48,10 +40,10 @@ void loop(){
 }
 
 void connectToWiFi(const char* ssid, const char* passwd){
-  WiFi.mode(WIFI_OFF); //This prevents reconnection issue
+  WiFi.mode(WIFI_OFF); // Prevents reconnection issues
   delay(10);
-  WiFi.mode(WIFI_STA); //This hides the viewing of ESP as wifi hotspot
-  WiFi.begin(ssid, passwd); //Connect to your WiFi router
+  WiFi.mode(WIFI_STA); // Hides ESP from being a WiFi hotspot
+  WiFi.begin(ssid, passwd); // Connect to WiFi router
   while (WiFi.status() != WL_CONNECTED){
     delay(1000);
     Serial.print(".");
@@ -60,8 +52,8 @@ void connectToWiFi(const char* ssid, const char* passwd){
 }
 
 void connectToHost(const int httpPort){
-  int retry_counter=0; //To be used while retrying to get connected
-  wifiClient.setTimeout(15000); // 15 Seconds
+  int retry_counter = 0;
+  wifiClient.setTimeout(15000); // 15 seconds timeout
   delay(1000);
   Serial.printf("Connecting to \"%s\"\n", host);
 
@@ -71,7 +63,7 @@ void connectToHost(const int httpPort){
     retry_counter++;
   }
 
-  if(retry_counter==31){
+  if(retry_counter == 31){
     Serial.println("\nConnection failed.");
     return;
   }
@@ -92,7 +84,6 @@ void transferData(String data, const char* filepath){
   getFeedback("Transaction uploaded successfully!");
 }
 
-
 /*
  * GET FEEDBACK
 */
@@ -110,8 +101,6 @@ void getFeedback(String success_msg){
 
   if(datarx.indexOf(success_msg) >= 0){
     Serial.println("Data Transferred.\n");
-    digitalWrite(AMBER_LED_PIN, 0);
-    blinkLEDWhileBuzzing(GREEN_LED_PIN, BUZZER_PIN, 100, 100, 4);   
   }
   else{
     Serial.println("Data Transfer Failed.\n"); 
@@ -127,7 +116,7 @@ String readBalanceFromCard(byte blockNumber, byte readingBuffer[]){
   if(card_status != MFRC522::STATUS_OK){
     Serial.print(F("Authentication failed: "));
     Serial.println(mfrc522.GetStatusCodeName(card_status));
-    exit;
+    return "";
   }
 
   byte readDataLength = 18;
@@ -135,7 +124,7 @@ String readBalanceFromCard(byte blockNumber, byte readingBuffer[]){
   if(card_status != MFRC522::STATUS_OK){
     Serial.print(F("Reading failed: "));
     Serial.println(mfrc522.GetStatusCodeName(card_status));
-    exit;
+    return "";
   }
 
   String value = "";
@@ -154,18 +143,18 @@ bool saveBalanceToCard(byte blockNumber, byte writingBuffer[]){
   if(card_status != MFRC522::STATUS_OK){
     Serial.print(F("PCD_Authenticate() failed: "));
     Serial.println(mfrc522.GetStatusCodeName(card_status));
-    return false;  // ✅ Proper return statement
+    return false;
   }
 
   card_status = mfrc522.MIFARE_Write(blockNumber, writingBuffer, 16);
   if(card_status != MFRC522::STATUS_OK){
     Serial.print(F("MIFARE_Write() failed: "));
     Serial.println(mfrc522.GetStatusCodeName(card_status));
-    return false;  // ✅ Proper return statement
+    return false;
   }
 
   delay(3000);
-  return true;  // ✅ Successful write, return true
+  return true;
 }
 
 /*
@@ -173,9 +162,9 @@ bool saveBalanceToCard(byte blockNumber, byte writingBuffer[]){
 */
 void operateData(byte blockNumber, String initialBalance){
   int transportFare = 450;
-  float newBalance = initialBalance.toInt()-transportFare;
-  if(initialBalance.toInt()<transportFare){ 
-    blinkLEDWhileBuzzing(AMBER_LED_PIN, BUZZER_PIN, 600, 400, 4);   
+  float newBalance = initialBalance.toInt() - transportFare;
+
+  if(initialBalance.toInt() < transportFare){ 
     Serial.print("Insufficient Balance: ");
     Serial.println(initialBalance); 
     return;
@@ -185,21 +174,19 @@ void operateData(byte blockNumber, String initialBalance){
   char writingBuffer[16];
   initial_balance_str = (String)newBalance;
   initial_balance_str.toCharArray(writingBuffer, 16);
-  int strLeng = initial_balance_str.length()-3;
+  int strLeng = initial_balance_str.length() - 3;
 
   /*
-   * This servers to add spaces to the typed text in order to fill up to 16 characters
+   * Add spaces to fill up to 16 characters
   */
-
   for(byte i = strLeng; i < 30; i++){
     writingBuffer[i] = ' ';     
   }
 
   Serial.println("\n********************");
   Serial.println("Processing...");
-  digitalWrite(AMBER_LED_PIN, 1);
 
-  if(saveBalanceToCard(blockNumber, (unsigned char *)writingBuffer)==true){
+  if(saveBalanceToCard(blockNumber, (unsigned char *)writingBuffer) == true){
     Serial.print("CustomerID: ");
     Serial.println(getUUID()); 
     Serial.print("Initial Balance: ");
@@ -211,28 +198,19 @@ void operateData(byte blockNumber, String initialBalance){
     Serial.println("Transaction Succeeded.\n"); 
 
     String mData="";
-    mData = "customer="+String(getUUID())+"&initial_balance="+String(initialBalance)+"&transport_fare="+String(transportFare);    
+    mData = "customer=" + String(getUUID()) + "&initial_balance=" + String(initialBalance) + "&transport_fare=" + String(transportFare);    
     connectToHost(80);
     transferData(mData, "/projects/4e8d42b606f70fa9d39741a93ed0356c/y2-2025/upload.php");   
   }
-
   else{
     Serial.print("Transaction Failed.\nPlease try again.\n"); 
   }
   Serial.println("********************\n");  
 }
 
-void blinkLEDWhileBuzzing(int LED_Pin, int Buzzer_Pin, int t0, int t1, int n){
-  for(int i=0; i<n; i++){
-    digitalWrite(LED_Pin, 1);
-    digitalWrite(Buzzer_Pin, 1);
-    delay(t0);
-    digitalWrite(LED_Pin, 0);
-    digitalWrite(Buzzer_Pin, 0);
-    delay(t1);    
-  }
-}
-
+/*
+ * GET UUID
+*/
 String getUUID(){
   String content = "";
   for (byte i = 0; i < mfrc522.uid.size; i++){
